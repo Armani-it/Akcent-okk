@@ -249,6 +249,28 @@
             </div>
         </div>
 
+        <!-- NEW: Analytics Table -->
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+            <header class="mb-6">
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Аналитика</h1>
+            </header>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-500 whitespace-nowrap" id="analytics-data-table">
+                    <thead class="text-xs text-gray-700 uppercase" id="analytics-data-table-head"></thead>
+                    <tbody id="analytics-data-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- NEW: Analytics Chart -->
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+             <h2 class="text-2xl font-bold text-gray-800 mb-4">График аналитики за месяц</h2>
+             <div class="h-80">
+                 <canvas id="analytics-chart"></canvas>
+             </div>
+        </div>
+
+
         <!-- MOVED UP: Обратный калькулятор (Факт) -->
         <div class="bg-white p-6 rounded-2xl shadow-lg">
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Нәтиже (Факт за выбранный день)</h2>
@@ -389,12 +411,15 @@
         const leadSourceNames = ['Сайт', 'Ватсап', 'Ген лид', 'Тик ток', 'Блогер'];
         const extraSourceNames = ['Инстаграм', 'Телеграм', 'Рассылка', 'Био Инстаграм', 'Деңгей анықтау'];
         const factRevenueSourceNames = ['Пробный сабақ (факт)', 'Касса (факт)'];
+        const analyticsSourceNames = ['Пробный тіркелді', 'пробный берілді', 'Сабақ өтілді', 'Чек'];
 
         let combinedChart = null;
         let summaryChart = null;
+        let analyticsChart = null;
         let leadDataStore = {};
         let extraDataStore = {};
         let factRevenueDataStore = {};
+        let analyticsDataStore = {};
         let monthlyPlanDataStore = {};
         let reverseCalcDataStore = {};
 
@@ -424,6 +449,7 @@
                 leads: leadDataStore[dataKey] || createNewData(leadSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
                 extra: extraDataStore[dataKey] || createNewData(extraSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
                 factRevenue: factRevenueDataStore[dataKey] || createNewData(factRevenueSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
+                analytics: analyticsDataStore[dataKey] || createNewData(analyticsSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
                 monthlyPlan: monthlyPlanDataStore[dataKey] || { plan: 5000000 },
                 reverseCalc: reverseCalcDataStore[dataKey] || {}
             };
@@ -444,12 +470,13 @@
             return sourceNames.map(source => ({ source: source, values: Array(days).fill(0) }));
         }
         
-        function createTable(containerId, sourceNames, isLeadTable) {
+        function createTable(containerId, sourceNames, isLeadTable, hasTotals = true) {
             let dataStore;
             switch(containerId) {
                 case 'leads-data-table': dataStore = leadDataStore; break;
                 case 'extra-data-table': dataStore = extraDataStore; break;
                 case 'fact-revenue-data-table': dataStore = factRevenueDataStore; break;
+                case 'analytics-data-table': dataStore = analyticsDataStore; break;
                 default: dataStore = {};
             }
 
@@ -460,7 +487,8 @@
             const tableBody = tableContainer.querySelector('tbody');
             const tableFoot = tableContainer.querySelector('tfoot');
             
-            tableHead.innerHTML = ''; tableBody.innerHTML = ''; tableFoot.innerHTML = '';
+            tableHead.innerHTML = ''; tableBody.innerHTML = ''; 
+            if (tableFoot) tableFoot.innerHTML = '';
 
             const dataKey = `${selectedYear}-${selectedMonth}`;
             const rawData = dataStore[dataKey];
@@ -474,51 +502,65 @@
             if (containerId === 'leads-data-table') headerClass = 'bg-gray-100';
             else if (containerId === 'extra-data-table') headerClass = 'bg-slate-200';
             else if (containerId === 'fact-revenue-data-table') headerClass = 'bg-purple-100';
+            else if (containerId === 'analytics-data-table') headerClass = 'bg-blue-100';
+
 
             let headerRow = `<tr class="${headerClass}"><th class="px-2 py-3 sticky left-0 ${headerClass} z-10">Источник</th>`;
             for (let i = 1; i <= days; i++) { headerRow += `<th class="px-2 py-3 text-center w-32">${i}</th>`; }
-            headerRow += `<th class="px-2 py-3 text-center sticky right-0 ${headerClass} z-10 w-40">Итог</th></tr>`;
+            if (hasTotals) {
+                headerRow += `<th class="px-2 py-3 text-center sticky right-0 ${headerClass} z-10 w-40">Итог</th>`;
+            }
+            headerRow += `</tr>`;
             tableHead.innerHTML = headerRow;
 
             rawData.forEach((row, rowIndex) => {
                 let bodyRow = `<tr class="bg-white even:bg-gray-50"><th class="px-2 py-2 font-medium text-gray-900 sticky left-0 z-10 bg-inherit">${row.source}</th>`;
                 row.values.forEach((val, colIndex) => { bodyRow += `<td class="px-1 py-1"><input type="number" value="${val || 0}" class="data-input data-table-input" data-table-id="${containerId}" data-row="${rowIndex}" data-col="${colIndex}"></td>`; });
-                bodyRow += `<td id="${containerId}-row-total-${rowIndex}" class="px-2 py-2 font-bold text-center sticky right-0 z-10 bg-inherit w-40">0</td></tr>`;
+                if (hasTotals) {
+                    bodyRow += `<td id="${containerId}-row-total-${rowIndex}" class="px-2 py-2 font-bold text-center sticky right-0 z-10 bg-inherit w-40">0</td>`;
+                }
+                bodyRow += `</tr>`;
                 tableBody.innerHTML += bodyRow;
             });
             
-            const footerHiddenClass = (containerId === 'fact-revenue-data-table') ? 'hidden' : '';
-            let footerRowHtml = `<tr class="${headerClass} ${footerHiddenClass}"><th class="px-2 py-3 sticky left-0 z-10 ${headerClass}">Итог за день</th>`;
-            for (let i = 0; i < days; i++) { footerRowHtml += `<td id="${containerId}-col-total-${i}" class="px-2 py-2 text-center font-bold">0</td>`; }
-            footerRowHtml += `<td id="${containerId}-grand-total" class="px-2 py-2 text-center sticky right-0 z-10 ${headerClass} font-extrabold">0</td></tr>`;
-            
-            if (isLeadTable) {
-                let combinedFooterRow = `<tr class="bg-blue-100 text-blue-800 font-bold"><th class="px-2 py-3 sticky left-0 z-10 bg-blue-100">Общий итог за день</th>`;
-                for (let i = 0; i < days; i++) { combinedFooterRow += `<td id="combined-col-total-${i}" class="px-2 py-2 text-center">0</td>`; }
-                combinedFooterRow += `<td id="combined-grand-total" class="px-2 py-2 text-center sticky right-0 z-10 bg-blue-100 font-extrabold">0</td></tr>`;
-                tableFoot.innerHTML = footerRowHtml + combinedFooterRow;
-            } else {
-                tableFoot.innerHTML = footerRowHtml;
+            if (hasTotals && tableFoot) {
+                const footerHiddenClass = (containerId === 'fact-revenue-data-table') ? 'hidden' : '';
+                let footerRowHtml = `<tr class="${headerClass} ${footerHiddenClass}"><th class="px-2 py-3 sticky left-0 z-10 ${headerClass}">Итог за день</th>`;
+                for (let i = 0; i < days; i++) { footerRowHtml += `<td id="${containerId}-col-total-${i}" class="px-2 py-2 text-center font-bold">0</td>`; }
+                footerRowHtml += `<td id="${containerId}-grand-total" class="px-2 py-2 text-center sticky right-0 z-10 ${headerClass} font-extrabold">0</td></tr>`;
+                
+                if (isLeadTable) {
+                    let combinedFooterRow = `<tr class="bg-blue-100 text-blue-800 font-bold"><th class="px-2 py-3 sticky left-0 z-10 bg-blue-100">Общий итог за день</th>`;
+                    for (let i = 0; i < days; i++) { combinedFooterRow += `<td id="combined-col-total-${i}" class="px-2 py-2 text-center">0</td>`; }
+                    combinedFooterRow += `<td id="combined-grand-total" class="px-2 py-2 text-center sticky right-0 z-10 bg-blue-100 font-extrabold">0</td></tr>`;
+                    tableFoot.innerHTML = footerRowHtml + combinedFooterRow;
+                } else {
+                    tableFoot.innerHTML = footerRowHtml;
+                }
             }
         }
 
-        function calculateTotals(leadData = [], extraData = [], factRevenueData = []) {
+        function calculateTotals(leadData = [], extraData = [], factRevenueData = [], analyticsData = []) {
             const days = getDaysInMonth(selectedYear, selectedMonth);
-            const calculateTable = (tableId, data) => {
+            const calculateTable = (tableId, data, hasTotals = true) => {
                 const dailyTotals = Array(days).fill(0);
                 if (data && data.length > 0) {
-                    data.forEach((row, rowIndex) => {
-                        const rowTotal = row.values.reduce((sum, val) => sum + (Number(val) || 0), 0);
-                        const rowTotalEl = document.querySelector(`#${tableId}-row-total-${rowIndex}`);
-                        if(rowTotalEl) rowTotalEl.textContent = rowTotal.toLocaleString('ru-RU');
-                    });
+                    if (hasTotals) {
+                        data.forEach((row, rowIndex) => {
+                            const rowTotal = row.values.reduce((sum, val) => sum + (Number(val) || 0), 0);
+                            const rowTotalEl = document.querySelector(`#${tableId}-row-total-${rowIndex}`);
+                            if(rowTotalEl) rowTotalEl.textContent = rowTotal.toLocaleString('ru-RU');
+                        });
+                    }
                     for (let i = 0; i < days; i++) { dailyTotals[i] = data.reduce((sum, row) => sum + (Number(row.values[i]) || 0), 0); }
-                    dailyTotals.forEach((total, i) => { 
-                        const colTotalEl = document.querySelector(`#${tableId}-col-total-${i}`);
-                        if(colTotalEl) colTotalEl.textContent = total.toLocaleString('ru-RU');
-                    });
-                    const grandTotalEl = document.querySelector(`#${tableId}-grand-total`);
-                    if(grandTotalEl) grandTotalEl.textContent = dailyTotals.reduce((a, b) => a + b, 0).toLocaleString('ru-RU');
+                    if (hasTotals) {
+                        dailyTotals.forEach((total, i) => { 
+                            const colTotalEl = document.querySelector(`#${tableId}-col-total-${i}`);
+                            if(colTotalEl) colTotalEl.textContent = total.toLocaleString('ru-RU');
+                        });
+                        const grandTotalEl = document.querySelector(`#${tableId}-grand-total`);
+                        if(grandTotalEl) grandTotalEl.textContent = dailyTotals.reduce((a, b) => a + b, 0).toLocaleString('ru-RU');
+                    }
                 }
                 return dailyTotals;
             };
@@ -526,6 +568,7 @@
             const leadDailyTotals = calculateTable('leads-data-table', leadData);
             const extraDailyTotals = calculateTable('extra-data-table', extraData);
             calculateTable('fact-revenue-data-table', factRevenueData);
+            calculateTable('analytics-data-table', analyticsData, false);
 
             const trialDailyTotals = (factRevenueData[0] && factRevenueData[0].values) ? factRevenueData[0].values.map(v => Number(v) || 0) : Array(days).fill(0);
             const revenueDailyTotals = (factRevenueData[1] && factRevenueData[1].values) ? factRevenueData[1].values.map(v => Number(v) || 0) : Array(days).fill(0);
@@ -543,6 +586,7 @@
 
             updateCombinedChart(leadDailyTotals, extraDailyTotals);
             updateSummaryChart(trialDailyTotals, revenueDailyTotals);
+            updateAnalyticsChart(analyticsData);
             runCalculator();
             runReverseCalculator();
             updateMonthlyPlanProgress();
@@ -668,6 +712,34 @@
                 }
             });
         }
+
+        function initAnalyticsChart() {
+            const ctx = document.getElementById('analytics-chart').getContext('2d');
+            const colors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6'];
+            analyticsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: analyticsSourceNames.map((label, index) => ({
+                        label: label,
+                        data: [],
+                        borderColor: colors[index],
+                        backgroundColor: colors[index] + '33', // Add transparency
+                        fill: false,
+                        tension: 0.3
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { drawBorder: false } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
         
         function updateCombinedChart(leadTotals, extraTotals) {
              if (!combinedChart) return;
@@ -685,6 +757,18 @@
              summaryChart.data.datasets[0].data = trialTotals;
              summaryChart.data.datasets[1].data = revenueTotals;
              summaryChart.update();
+        }
+
+        function updateAnalyticsChart(analyticsData) {
+            if (!analyticsChart || !analyticsData || analyticsData.length === 0) return;
+            const days = getDaysInMonth(selectedYear, selectedMonth);
+            analyticsChart.data.labels = Array.from({length: days}, (_, i) => i + 1);
+            analyticsData.forEach((row, index) => {
+                if(analyticsChart.data.datasets[index]) {
+                    analyticsChart.data.datasets[index].data = row.values;
+                }
+            });
+            analyticsChart.update();
         }
 
         function updateMonthlyPlanProgress() {
@@ -779,6 +863,7 @@
                 leadDataStore[dataKey] = data.leads || createNewData(leadSourceNames, days);
                 extraDataStore[dataKey] = data.extra || createNewData(extraSourceNames, days);
                 factRevenueDataStore[dataKey] = data.factRevenue || createNewData(factRevenueSourceNames, days);
+                analyticsDataStore[dataKey] = data.analytics || createNewData(analyticsSourceNames, days);
                 monthlyPlanDataStore[dataKey] = data.monthlyPlan || { plan: 5000000 };
                 reverseCalcDataStore[dataKey] = data.reverseCalc || {};
                 
@@ -790,10 +875,11 @@
                 console.log("Populating tables with Firestore data...");
                 createTable('leads-data-table', leadSourceNames, true);
                 createTable('extra-data-table', extraSourceNames, false);
-                createTable('fact-revenue-data-table', factRevenueSourceNames, false);
+                createTable('fact-revenue-data-table', factRevenueSourceNames, true);
+                createTable('analytics-data-table', analyticsSourceNames, false, false);
                 
                 populateDaySelector(days);
-                calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey], factRevenueDataStore[dataKey]);
+                calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey], factRevenueDataStore[dataKey], analyticsDataStore[dataKey]);
             }, error => {
                 console.error("Error with Firestore snapshot listener:", error);
                 console.error(`Firestore permission error. The app tried to read data from the path "${docRef.path}" but was denied. Please ensure your Firestore security rules allow this operation. The user ID is: ${userId}`);
@@ -818,12 +904,13 @@
                         case 'leads-data-table': dataStore = leadDataStore; break;
                         case 'extra-data-table': dataStore = extraDataStore; break;
                         case 'fact-revenue-data-table': dataStore = factRevenueDataStore; break;
+                        case 'analytics-data-table': dataStore = analyticsDataStore; break;
                         default: return;
                     }
 
                     if (dataStore[dataKey] && dataStore[dataKey][rowIndex]) {
                         dataStore[dataKey][rowIndex].values[colIndex] = value;
-                        calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey], factRevenueDataStore[dataKey]);
+                        calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey], factRevenueDataStore[dataKey], analyticsDataStore[dataKey]);
                         debouncedSave();
                     }
                 }
@@ -958,6 +1045,7 @@
                             populateSelectors();      
                             initCombinedChart();
                             initSummaryChart();
+                            initAnalyticsChart();
                             setupAppListeners();
                             handleDateChange(); 
                         }
