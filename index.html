@@ -48,7 +48,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(255, 255, 255, 0.9);
+            background-color: rgba(255, 255, 255, 0.95);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -58,6 +58,7 @@
             font-size: 1.2rem;
             color: #374151;
             text-align: center;
+            padding: 1rem;
         }
         /* Styles for the new VERTICAL progress bar */
         .battery-assembly {
@@ -146,11 +147,13 @@
     
     <!-- Loading Overlay -->
     <div id="loading-overlay">
-        <svg class="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <span>Подключение к командной базе данных...</span>
+        <div id="loading-spinner">
+            <svg class="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+        <span id="loading-text">Подключение к командной базе данных...</span>
     </div>
 
     <div class="max-w-7xl mx-auto space-y-8">
@@ -331,7 +334,7 @@
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // --- GLOBAL STATE ---
         const today = new Date();
@@ -497,7 +500,6 @@
             const selectedDayIndex = parseInt(daySelector.value) - 1;
             if (selectedDayIndex < 0) return;
             
-            // MODIFIED: Takes data only from the main leads table
             const colTotalEl = document.querySelector(`#leads-data-table-col-total-${selectedDayIndex}`);
             const initialLeads = colTotalEl ? parseInt(colTotalEl.textContent.replace(/\s/g, '')) || 0 : 0;
             document.getElementById('calc-initial-leads').textContent = initialLeads;
@@ -522,7 +524,6 @@
             const selectedDayIndex = parseInt(daySelector.value) - 1;
             if (selectedDayIndex < 0) return;
             
-            // MODIFIED: Takes data only from the main leads table
             const initialLeadsEl = document.querySelector(`#leads-data-table-col-total-${selectedDayIndex}`);
             const initialLeads = initialLeadsEl ? parseInt(initialLeadsEl.textContent.replace(/\s/g, '')) || 0 : 0;
             document.getElementById('reverse-calc-initial-leads').textContent = initialLeads;
@@ -746,24 +747,33 @@
         // --- INITIALIZATION ---
         
         async function initFirebase() {
-            const firebaseConfig = typeof __firebase_config !== 'undefined' 
-                ? JSON.parse(__firebase_config)
-                : { /* Fallback config */
-                    apiKey: "YOUR_API_KEY", 
-                    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-                    projectId: "YOUR_PROJECT_ID",
-                    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-                    messagingSenderId: "YOUR_SENDER_ID",
-                    appId: "YOUR_APP_ID"
-                };
+            // =================================================================
+            // ВАЖНО ДЛЯ РАЗВЕРТЫВАНИЯ (DEPLOYMENT)
+            // =================================================================
+            // Вставьте сюда ключи вашего НОВОГО проекта Firebase.
+            // Вы можете найти их в Firebase Console -> Настройки проекта -> Ваши приложения -> Конфигурация.
+            const firebaseConfig = {
+                apiKey: "AIzaSyAwV2orD_hamu431FinzFe4bXYrHWxfRMg",
+                authDomain: "okk-akcent.firebaseapp.com",
+                projectId: "okk-akcent",
+                storageBucket: "okk-akcent.appspot.com",
+                messagingSenderId: "188952407379",
+                appId: "1:188952407379:web:d8a2b8e8027842b23185a6",
+                measurementId: "G-4T7LRES9BZ"
+            };
+            
+            // Чтобы ваше приложение работало после загрузки на хостинг (например, Render),
+            // убедитесь, что вы выполнили ДВА ДЕЙСТВИЯ в консоли Firebase:
+            // 1. Authentication -> Sign-in method -> Включите 'Anonymous' (Анонимный) вход.
+            // 2. Authentication -> Settings -> Authorized domains -> Добавьте домен вашего сайта (например, my-app.onrender.com).
+            // =================================================================
 
-            appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
+            appId = firebaseConfig.projectId;
 
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                setLogLevel('debug');
                 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
@@ -774,23 +784,30 @@
                         document.getElementById('loading-overlay').style.display = 'none';
                         handleDateChange(); 
                     } else {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            console.log("Attempting sign-in with custom token.");
-                            try {
-                                await signInWithCustomToken(auth, __initial_auth_token);
-                            } catch (tokenError) {
-                                console.error("Custom token sign-in failed, trying anonymous:", tokenError);
-                                await signInAnonymously(auth);
-                            }
-                        } else {
-                            console.log("No user or token. Signing in anonymously for team access.");
-                            await signInAnonymously(auth);
-                        }
+                        console.log("No user. Signing in anonymously for team access.");
+                        await signInAnonymously(auth);
                     }
                 });
             } catch (e) {
                 console.error("Firebase initialization failed:", e);
-                 document.getElementById('loading-overlay').textContent = 'Ошибка подключения к базе данных. Проверьте конфигурацию Firebase.';
+                const loadingText = document.getElementById('loading-text');
+                const spinner = document.getElementById('loading-spinner');
+                if(spinner) spinner.style.display = 'none';
+                if(loadingText) {
+                    loadingText.innerHTML = `
+                        <div class="text-center p-4 max-w-md bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                            <h2 class="text-xl font-bold mb-2">Ошибка подключения к Firebase</h2>
+                            <p class="text-left">
+                                Не удалось подключиться к базе данных. Пожалуйста, проверьте:
+                                <ol class="list-decimal list-inside mt-2 space-y-1">
+                                    <li>Правильность ключей в <strong>firebaseConfig</strong> в коде.</li>
+                                    <li>Включен ли <strong>анонимный вход</strong> в Firebase Authentication.</li>
+                                    <li>Добавлен ли домен вашего сайта в <strong>Authorized domains</strong> в Firebase.</li>
+                                </ol>
+                            </p>
+                        </div>
+                    `;
+                }
             }
         }
 
