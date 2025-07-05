@@ -216,9 +216,9 @@
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Нәтиже (Факт за выбранный день)</h2>
              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                  <div class="flex flex-col space-y-2">
-                    <label for="day-selector" class="font-medium text-gray-700">Выберите день для расчета</label>
-                    <select id="day-selector" class="date-selector"></select>
-                </div>
+                     <label for="day-selector" class="font-medium text-gray-700">Выберите день для расчета</label>
+                     <select id="day-selector" class="date-selector"></select>
+                 </div>
                  <div class="flex flex-col space-y-2 bg-gray-50 p-4 rounded-lg">
                      <label class="font-medium text-gray-700">Итог за день (Лиды)</label>
                      <div id="reverse-calc-initial-leads" class="text-2xl font-bold text-gray-900">0</div>
@@ -244,7 +244,7 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                     <label class="font-medium text-gray-700">Дошли (Факт из таблицы)</label>
-                     <div id="reverse-calc-attended-trials" class="calc-input bg-gray-100">0</div>
+                     <div id="reverse-calc-attended-trials" class="calc-input bg-gray-100 flex items-center justify-center">0</div>
                     <div class="flex flex-col items-center bg-purple-50 p-4 rounded-lg">
                         <label class="text-sm font-medium text-purple-800">Процент доходимости</label>
                         <div id="reverse-calc-show-perc-result" class="text-xl font-bold text-purple-800">0%</div>
@@ -260,7 +260,7 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                     <label class="font-medium text-gray-700">Касса (Факт из таблицы)</label>
-                    <div id="reverse-calc-revenue" class="calc-input bg-gray-100">0</div>
+                    <div id="reverse-calc-revenue" class="calc-input bg-gray-100 flex items-center justify-center">0</div>
                     <div class="flex flex-col items-center bg-green-100 p-4 rounded-lg">
                         <label class="text-sm font-medium text-green-800">Средний чек</label>
                         <div id="reverse-calc-avg-check-result" class="text-2xl font-bold text-green-800">0 ₸</div>
@@ -291,7 +291,7 @@
         <div class="bg-white p-6 rounded-2xl shadow-lg">
              <h2 class="text-2xl font-bold text-gray-800 mb-4">Итоги по лидам за месяц</h2>
              <div class="h-80">
-                <canvas id="combined-daily-chart"></canvas>
+                 <canvas id="combined-daily-chart"></canvas>
              </div>
         </div>
 
@@ -299,7 +299,7 @@
         <div class="bg-white p-6 rounded-2xl shadow-lg">
              <h2 class="text-2xl font-bold text-gray-800 mb-4">Итоги по факту за месяц (Пробные и Касса)</h2>
              <div class="h-80">
-                <canvas id="summary-chart"></canvas>
+                 <canvas id="summary-chart"></canvas>
              </div>
         </div>
 
@@ -311,9 +311,9 @@
                 <div class="flex-shrink-0 battery-assembly">
                      <div class="battery-cap"></div>
                      <div class="progress-tank">
-                        <div id="progress-water-fill" class="progress-water">
-                            <div id="percentage-text" class="percentage-text">0%</div>
-                        </div>
+                         <div id="progress-water-fill" class="progress-water">
+                             <div id="percentage-text" class="percentage-text">0%</div>
+                         </div>
                      </div>
                 </div>
                 <!-- Right side: Input and Text -->
@@ -334,7 +334,7 @@
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // --- GLOBAL STATE ---
         const today = new Date();
@@ -344,15 +344,15 @@
         const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
         const leadSourceNames = ['Сайт', 'Ватсап', 'Ген лид', 'Тик ток', 'Блогер'];
         const extraSourceNames = ['Инстаграм', 'Телеграм', 'Рассылка', 'Био Инстаграм', 'Деңгей анықтау'];
-        const factRevenueSourceNames = ['Пробный сабақ (факт)', 'Касса (факт)']; // Combined sources
+        const factRevenueSourceNames = ['Пробный сабақ (факт)', 'Касса (факт)'];
 
         let combinedChart = null;
         let summaryChart = null;
         let leadDataStore = {};
         let extraDataStore = {};
-        let factRevenueDataStore = {}; // Combined data store
-        let monthlyPlanDataStore = {}; // For the monthly plan
-        let reverseCalcDataStore = {}; // NEW: Store for reverse calculator inputs
+        let factRevenueDataStore = {};
+        let monthlyPlanDataStore = {};
+        let reverseCalcDataStore = {}; // IMPROVED: Now stores data for each day.
 
         // Firebase State
         let db, auth;
@@ -368,12 +368,13 @@
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 saveDataToFirestore();
-            }, 500); // Save 0.5 seconds after the user stops typing
+            }, 700); // Save 0.7 seconds after the user stops typing
         }
 
         async function saveDataToFirestore() {
             if (!isAuthReady) return;
             const dataKey = `${selectedYear}-${selectedMonth}`;
+            // Path for public data, accessible by team members
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'monthlyData', dataKey);
             
             const dataToSave = {
@@ -381,7 +382,7 @@
                 extra: extraDataStore[dataKey] || createNewData(extraSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
                 factRevenue: factRevenueDataStore[dataKey] || createNewData(factRevenueSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
                 monthlyPlan: monthlyPlanDataStore[dataKey] || { plan: 5000000 },
-                reverseCalc: reverseCalcDataStore[dataKey] || { registered: 0, given: 0, checks: 0 }
+                reverseCalc: reverseCalcDataStore[dataKey] || {} // Will be populated day-by-day
             };
 
             try {
@@ -510,7 +511,7 @@
             const selectedDayIndex = parseInt(daySelector.value) - 1;
             if (selectedDayIndex < 0) return;
             
-            const colTotalEl = document.querySelector(`#leads-data-table-col-total-${selectedDayIndex}`);
+            const colTotalEl = document.querySelector(`#combined-col-total-${selectedDayIndex}`);
             const initialLeads = colTotalEl ? parseInt(colTotalEl.textContent.replace(/\s/g, '')) || 0 : 0;
             document.getElementById('calc-initial-leads').textContent = initialLeads;
             
@@ -531,14 +532,23 @@
         function runReverseCalculator() {
             const daySelector = document.getElementById('day-selector');
             if (!daySelector || !daySelector.value) return;
-            const selectedDayIndex = parseInt(daySelector.value) - 1;
+            const selectedDay = daySelector.value;
+            const selectedDayIndex = parseInt(selectedDay) - 1;
             if (selectedDayIndex < 0) return;
+
+            // Load daily data for reverse calculator
+            const dataKey = `${selectedYear}-${selectedMonth}`;
+            const monthlyReverseData = reverseCalcDataStore[dataKey] || {};
+            const dailyReverseData = monthlyReverseData[selectedDay] || { registered: 0, given: 0, checks: 0 };
+
+            document.getElementById('reverse-calc-registered-trials-input').value = dailyReverseData.registered;
+            document.getElementById('reverse-calc-given-trials-input').value = dailyReverseData.given;
+            document.getElementById('reverse-calc-checks-count').value = dailyReverseData.checks;
             
-            const initialLeadsEl = document.querySelector(`#leads-data-table-col-total-${selectedDayIndex}`);
+            const initialLeadsEl = document.querySelector(`#combined-col-total-${selectedDayIndex}`);
             const initialLeads = initialLeadsEl ? parseInt(initialLeadsEl.textContent.replace(/\s/g, '')) || 0 : 0;
             document.getElementById('reverse-calc-initial-leads').textContent = initialLeads;
 
-            const dataKey = `${selectedYear}-${selectedMonth}`;
             const factData = factRevenueDataStore[dataKey] || [];
             const trialRow = factData.find(r => r.source === 'Пробный сабақ (факт)');
             const revenueRow = factData.find(r => r.source === 'Касса (факт)');
@@ -546,9 +556,9 @@
             const attendedTrials = trialRow ? (Number(trialRow.values[selectedDayIndex]) || 0) : 0;
             const revenue = revenueRow ? (Number(revenueRow.values[selectedDayIndex]) || 0) : 0;
             
-            const registeredTrials = parseFloat(document.getElementById('reverse-calc-registered-trials-input').value) || 0;
-            const givenTrials = parseFloat(document.getElementById('reverse-calc-given-trials-input').value) || 0;
-            const checksCount = parseFloat(document.getElementById('reverse-calc-checks-count').value) || 0;
+            const registeredTrials = dailyReverseData.registered;
+            const givenTrials = dailyReverseData.given;
+            const checksCount = dailyReverseData.checks;
 
             document.getElementById('reverse-calc-attended-trials').textContent = attendedTrials;
             document.getElementById('reverse-calc-revenue').textContent = revenue.toLocaleString('ru-RU');
@@ -670,6 +680,8 @@
         function populateDaySelector(days) {
             const daySelector = document.getElementById('day-selector');
             if (!daySelector) return;
+            const currentDayValue = daySelector.value;
+
             daySelector.innerHTML = '';
             for(let i = 1; i <= days; i++) {
                 const option = document.createElement('option');
@@ -677,9 +689,13 @@
                 option.textContent = `${i} ${monthNames[selectedMonth]}`;
                 daySelector.appendChild(option);
             }
-            if (selectedYear === today.getFullYear() && selectedMonth === today.getMonth()) {
+            if (currentDayValue && currentDayValue <= days) {
+                daySelector.value = currentDayValue;
+            } else if (selectedYear === today.getFullYear() && selectedMonth === today.getMonth()) {
                 daySelector.value = today.getDate();
-            } else { daySelector.value = 1; }
+            } else { 
+                daySelector.value = 1; 
+            }
         }
 
         function populateSelectors() {
@@ -717,18 +733,12 @@
                 extraDataStore[dataKey] = data.extra || createNewData(extraSourceNames, days);
                 factRevenueDataStore[dataKey] = data.factRevenue || createNewData(factRevenueSourceNames, days);
                 monthlyPlanDataStore[dataKey] = data.monthlyPlan || { plan: 5000000 };
-                reverseCalcDataStore[dataKey] = data.reverseCalc || { registered: 0, given: 0, checks: 0 };
+                reverseCalcDataStore[dataKey] = data.reverseCalc || {};
                 
                 if (!exists) {
                     console.log("No document for this month. Creating and saving new data for the team.");
                     saveDataToFirestore(); 
                 }
-
-                // Restore reverse calculator inputs
-                const reverseCalcData = reverseCalcDataStore[dataKey];
-                document.getElementById('reverse-calc-registered-trials-input').value = reverseCalcData.registered;
-                document.getElementById('reverse-calc-given-trials-input').value = reverseCalcData.given;
-                document.getElementById('reverse-calc-checks-count').value = reverseCalcData.checks;
 
                 console.log("Populating tables with Firestore data...");
                 createTable('leads-data-table', leadSourceNames, true);
@@ -746,60 +756,67 @@
         
         async function initApp() {
             // 1. Render the basic layout immediately
-            populateSelectors();    
+            populateSelectors();      
             initCombinedChart();
             initSummaryChart();
 
-            // 2. Configure and connect to Firebase
-            const firebaseConfig = {
-                apiKey: "AIzaSyAwV2orD_hamu431FinzFe4bXYrHWxfRMg",
-                authDomain: "okk-akcent.firebaseapp.com",
-                projectId: "okk-akcent",
-                storageBucket: "okk-akcent.appspot.com",
-                messagingSenderId: "188952407379",
-                appId: "1:188952407379:web:d8a2b8e8027842b23185a6",
-                measurementId: "G-4T7LRES9BZ"
-            };
-            appId = firebaseConfig.projectId;
+            // 2. Get Firebase config from the environment
+            // IMPORTANT: These variables are provided by the hosting environment.
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             document.getElementById('team-id-display').textContent = appId;
+
+            if (!firebaseConfig) {
+                console.error("Firebase config is missing.");
+                document.getElementById('loading-text').textContent = "Ошибка: Конфигурация Firebase отсутствует.";
+                document.getElementById('loading-spinner').style.display = 'none';
+                return;
+            }
 
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                await signInAnonymously(auth);
-                
-                const user = auth.currentUser;
-                if (user) {
-                    console.log("Authenticated for team access with UID:", user.uid);
-                    userId = user.uid;
-                    isAuthReady = true;
-                    
-                    // 3. Setup event listeners and load data now that we are authenticated
-                    setupEventListeners();
-                    handleDateChange(); // Initial data load
-                    
-                    document.getElementById('loading-overlay').style.display = 'none';
-                }
+                // Use onAuthStateChanged for robust auth handling
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        // User is signed in.
+                        console.log("Authenticated for team access with UID:", user.uid);
+                        userId = user.uid;
+                        if (!isAuthReady) {
+                            isAuthReady = true;
+                            // 3. Setup event listeners and load data now that we are authenticated
+                            setupEventListeners();
+                            handleDateChange(); // Initial data load
+                            document.getElementById('loading-overlay').style.display = 'none';
+                        }
+                    } else {
+                        // User is signed out. Attempt to sign in.
+                        isAuthReady = false;
+                        console.log("User is not signed in. Attempting authentication...");
+                        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                        if (token) {
+                            signInWithCustomToken(auth, token).catch(err => {
+                                console.error("Custom token sign-in failed:", err);
+                                signInAnonymously(auth); // Fallback to anonymous
+                            });
+                        } else {
+                            signInAnonymously(auth);
+                        }
+                    }
+                });
 
             } catch (error) {
-                 console.error("Firebase initialization or sign-in failed:", error);
+                 console.error("Firebase initialization failed:", error);
                  const loadingText = document.getElementById('loading-text');
                  const spinner = document.getElementById('loading-spinner');
                  if(spinner) spinner.style.display = 'none';
                  if(loadingText) {
                      loadingText.innerHTML = `
                          <div class="text-center p-4 max-w-md bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                             <h2 class="text-xl font-bold mb-2">Ошибка подключения к Firebase</h2>
-                             <p class="text-left">
-                                 Не удалось подключиться к базе данных. Пожалуйста, проверьте:
-                                 <ol class="list-decimal list-inside mt-2 space-y-1">
-                                     <li>Правильность ключей в <strong>firebaseConfig</strong>.</li>
-                                     <li>Включен ли <strong>анонимный вход</strong> в Firebase Authentication.</li>
-                                     <li>Добавлен ли домен вашего сайта в <strong>Authorized domains</strong> в Firebase.</li>
-                                 </ol>
-                             </p>
+                             <h2 class="text-xl font-bold mb-2">Ошибка подключения</h2>
+                             <p>Не удалось подключиться к базе данных. Обратитесь к администратору.</p>
                          </div>
                      `;
                  }
@@ -845,12 +862,16 @@
             document.getElementById('reverse-calculator-steps').addEventListener('input', (e) => {
                 if (e.target.matches('.calc-input')) {
                     const dataKey = `${selectedYear}-${selectedMonth}`;
+                    const day = document.getElementById('day-selector').value;
                     if (!reverseCalcDataStore[dataKey]) {
                         reverseCalcDataStore[dataKey] = {};
                     }
-                    reverseCalcDataStore[dataKey].registered = parseFloat(document.getElementById('reverse-calc-registered-trials-input').value) || 0;
-                    reverseCalcDataStore[dataKey].given = parseFloat(document.getElementById('reverse-calc-given-trials-input').value) || 0;
-                    reverseCalcDataStore[dataKey].checks = parseFloat(document.getElementById('reverse-calc-checks-count').value) || 0;
+                    if (!reverseCalcDataStore[dataKey][day]) {
+                        reverseCalcDataStore[dataKey][day] = {};
+                    }
+                    reverseCalcDataStore[dataKey][day].registered = parseFloat(document.getElementById('reverse-calc-registered-trials-input').value) || 0;
+                    reverseCalcDataStore[dataKey][day].given = parseFloat(document.getElementById('reverse-calc-given-trials-input').value) || 0;
+                    reverseCalcDataStore[dataKey][day].checks = parseFloat(document.getElementById('reverse-calc-checks-count').value) || 0;
                     runReverseCalculator();
                     debouncedSave();
                 }
