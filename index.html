@@ -14,7 +14,7 @@
             font-family: 'Inter', sans-serif;
             background-color: #f7f9fc;
         }
-        .data-input, .calc-input {
+        .data-input, .calc-input, .auth-input {
             width: 100%;
             min-width: 60px;
             border: 1px solid #e5e7eb;
@@ -24,7 +24,8 @@
             transition: all 0.2s;
             background-color: #f9fafb;
         }
-        .data-input:focus, .calc-input:focus {
+        .auth-input { text-align: left; }
+        .data-input:focus, .calc-input:focus, .auth-input:focus {
             outline: none;
             border-color: #3b82f6;
             background-color: white;
@@ -34,7 +35,7 @@
             background-color: transparent;
             border-color: transparent;
         }
-        .date-selector, .action-button {
+        .date-selector, .action-button, .auth-button {
             padding: 0.5rem 1rem;
             border-radius: 0.5rem;
             border: 1px solid #d1d5db;
@@ -42,13 +43,22 @@
             transition: all 0.2s ease;
             cursor: pointer;
         }
-        #loading-overlay {
+        .auth-button {
+            width: 100%;
+            background-color: #3b82f6;
+            color: white;
+            font-weight: 600;
+        }
+        .auth-button:hover {
+             background-color: #2563eb;
+        }
+        #loading-overlay, #auth-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(255, 255, 255, 0.95);
+            background-color: rgba(247, 249, 252, 0.95);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -59,6 +69,9 @@
             color: #374151;
             text-align: center;
             padding: 1rem;
+        }
+        .hidden {
+            display: none !important;
         }
         /* Styles for the new VERTICAL progress bar */
         .battery-assembly {
@@ -156,7 +169,31 @@
         <span id="loading-text">Подключение к командной базе данных...</span>
     </div>
 
-    <div class="max-w-7xl mx-auto space-y-8">
+    <!-- Auth Overlay -->
+    <div id="auth-overlay" class="hidden">
+        <div class="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl">
+            <h2 id="auth-title" class="text-2xl font-bold text-center text-gray-800 mb-6">Вход в систему</h2>
+            <form id="auth-form" class="space-y-4">
+                <div>
+                    <label for="auth-email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="auth-email" class="auth-input mt-1" required>
+                </div>
+                <div>
+                    <label for="auth-password" class="block text-sm font-medium text-gray-700">Пароль</label>
+                    <input type="password" id="auth-password" class="auth-input mt-1" required>
+                </div>
+                <p id="auth-error" class="text-sm text-red-600 h-4"></p>
+                <div class="pt-2">
+                    <button type="submit" id="auth-submit-button" class="auth-button">Войти</button>
+                </div>
+            </form>
+            <div class="mt-4 text-center">
+                <a href="#" id="auth-toggle-link" class="text-sm text-blue-600 hover:underline">У вас нет аккаунта? Зарегистрироваться</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container" class="max-w-7xl mx-auto space-y-8 hidden">
         <!-- Блок с таблицей лидов -->
         <div class="bg-white p-6 rounded-2xl shadow-lg">
             <header class="mb-6">
@@ -165,6 +202,7 @@
                     <div class="mt-4 sm:mt-0 flex items-center space-x-2">
                         <select id="month-select" class="date-selector"></select>
                         <select id="year-select" class="date-selector"></select>
+                        <button id="logout-button" class="action-button bg-red-500 text-white hover:bg-red-600">Выйти</button>
                     </div>
                 </div>
                 <p class="text-gray-500 mt-2" id="dashboard-subtitle">Данные за</p>
@@ -334,7 +372,13 @@
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // --- GLOBAL STATE ---
         const today = new Date();
@@ -358,7 +402,7 @@
         let db, auth;
         let appId;
         let userId;
-        let isAuthReady = false;
+        let isAppInitialized = false;
         let unsubscribeDataListener = null;
         let debounceTimer;
 
@@ -372,9 +416,9 @@
         }
 
         async function saveDataToFirestore() {
-            if (!isAuthReady) return;
+            if (!isAppInitialized) return;
             const dataKey = `${selectedYear}-${selectedMonth}`;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'monthlyData', dataKey);
+            const docRef = doc(db, 'userData', userId, 'monthlyData', dataKey);
             
             const dataToSave = {
                 leads: leadDataStore[dataKey] || createNewData(leadSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
@@ -386,9 +430,9 @@
 
             try {
                 await setDoc(docRef, dataToSave, { merge: true });
-                console.log("Team data saved to Firestore for key:", dataKey);
+                console.log("User data saved to Firestore for key:", dataKey);
             } catch (error) {
-                console.error("Error saving team data to Firestore: ", error);
+                console.error("Error saving user data to Firestore: ", error);
             }
         }
 
@@ -706,7 +750,7 @@
         }
         
         function handleDateChange() {
-            if (!isAuthReady) return;
+            if (!isAppInitialized) return;
             
             if (unsubscribeDataListener) {
                 unsubscribeDataListener();
@@ -721,7 +765,9 @@
             document.getElementById('dashboard-subtitle').textContent = `Данные за ${monthNames[selectedMonth]} ${selectedYear}`;
             
             const dataKey = `${selectedYear}-${selectedMonth}`;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'monthlyData', dataKey);
+            const docRef = doc(db, 'userData', userId, 'monthlyData', dataKey);
+            
+            console.log(`Attempting to listen to document: ${docRef.path}`);
 
             unsubscribeDataListener = onSnapshot(docRef, (docSnap) => {
                 const exists = docSnap.exists();
@@ -737,7 +783,7 @@
                 reverseCalcDataStore[dataKey] = data.reverseCalc || {};
                 
                 if (!exists) {
-                    console.log("No document for this month. Creating and saving new data for the team.");
+                    console.log("No document for this month. Creating and saving new data for the user.");
                     saveDataToFirestore(); 
                 }
 
@@ -750,91 +796,15 @@
                 calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey], factRevenueDataStore[dataKey]);
             }, error => {
                 console.error("Error with Firestore snapshot listener:", error);
+                console.error(`Firestore permission error. The app tried to read data from the path "${docRef.path}" but was denied. Please ensure your Firestore security rules allow this operation. The user ID is: ${userId}`);
             });
         }
 
-        // --- INITIALIZATION ---
-        
-        async function initApp() {
-            const lastSelectedMonth = localStorage.getItem('selectedMonth');
-            const lastSelectedYear = localStorage.getItem('selectedYear');
+        function setupAppListeners() {
+            document.getElementById('logout-button').addEventListener('click', () => {
+                signOut(auth);
+            });
 
-            if (lastSelectedMonth !== null && lastSelectedYear !== null) {
-                selectedMonth = parseInt(lastSelectedMonth, 10);
-                selectedYear = parseInt(lastSelectedYear, 10);
-            }
-
-            populateSelectors();      
-            initCombinedChart();
-            initSummaryChart();
-
-            let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-            if (!firebaseConfig) {
-                console.warn("Environment Firebase config not found. Using hardcoded fallback.");
-                firebaseConfig = {
-                    apiKey: "AIzaSyAwV2orD_hamu431FinzFe4bXYrHWxfRMg",
-                    authDomain: "okk-akcent.firebaseapp.com",
-                    projectId: "okk-akcent",
-                    storageBucket: "okk-akcent.appspot.com",
-                    messagingSenderId: "188952407379",
-                    appId: "1:188952407379:web:d8a2b8e8027842b23185a6",
-                    measurementId: "G-4T7LRES9BZ"
-                };
-                appId = firebaseConfig.projectId;
-            }
-            
-            document.getElementById('team-id-display').textContent = appId;
-
-            try {
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        console.log("Authenticated for team access with UID:", user.uid);
-                        userId = user.uid;
-                        if (!isAuthReady) {
-                            isAuthReady = true;
-                            setupEventListeners();
-                            handleDateChange(); 
-                            document.getElementById('loading-overlay').style.display = 'none';
-                        }
-                    } else {
-                        isAuthReady = false;
-                        console.log("User is not signed in. Attempting authentication...");
-                        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                        if (token && appId !== 'okk-akcent') {
-                            signInWithCustomToken(auth, token).catch(err => {
-                                console.error("Custom token sign-in failed, falling back to anonymous:", err);
-                                signInAnonymously(auth);
-                            });
-                        } else {
-                            console.log("No custom token or using fallback config, signing in anonymously.");
-                            signInAnonymously(auth);
-                        }
-                    }
-                });
-
-            } catch (error) {
-                 console.error("Firebase initialization failed:", error);
-                 const loadingText = document.getElementById('loading-text');
-                 const spinner = document.getElementById('loading-spinner');
-                 if(spinner) spinner.style.display = 'none';
-                 if(loadingText) {
-                     loadingText.innerHTML = `
-                         <div class="text-center p-4 max-w-md bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                             <h2 class="text-xl font-bold mb-2">Ошибка подключения</h2>
-                             <p>Не удалось подключиться к базе данных. Проверьте конфигурацию Firebase.</p>
-                         </div>
-                     `;
-                 }
-            }
-        }
-
-        function setupEventListeners() {
             document.body.addEventListener('input', (e) => {
                 if (e.target.matches('.data-input')) {
                     const tableId = e.target.closest('table').id;
@@ -891,6 +861,133 @@
             document.getElementById('year-select').addEventListener('change', handleDateChange);
             document.getElementById('day-selector').addEventListener('change', () => { runCalculator(); runReverseCalculator(); });
             document.getElementById('calculator-steps').addEventListener('input', runCalculator);
+        }
+
+        function setupAuthListeners() {
+            const authForm = document.getElementById('auth-form');
+            const authToggleLink = document.getElementById('auth-toggle-link');
+            const authTitle = document.getElementById('auth-title');
+            const authSubmitButton = document.getElementById('auth-submit-button');
+            const authError = document.getElementById('auth-error');
+            let isLogin = true;
+
+            authToggleLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                isLogin = !isLogin;
+                authTitle.textContent = isLogin ? 'Вход в систему' : 'Регистрация';
+                authSubmitButton.textContent = isLogin ? 'Войти' : 'Создать аккаунт';
+                authToggleLink.textContent = isLogin ? 'У вас нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти';
+                authError.textContent = '';
+            });
+
+            authForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('auth-email').value;
+                const password = document.getElementById('auth-password').value;
+                authError.textContent = '';
+
+                if (isLogin) {
+                    signInWithEmailAndPassword(auth, email, password)
+                        .catch(error => {
+                            console.error('Login error:', error.code);
+                            authError.textContent = 'Ошибка входа. Проверьте email и пароль.';
+                        });
+                } else {
+                    createUserWithEmailAndPassword(auth, email, password)
+                        .catch(error => {
+                            console.error('Registration error:', error.code);
+                            if (error.code === 'auth/email-already-in-use') {
+                                authError.textContent = 'Этот email уже используется.';
+                            } else if (error.code === 'auth/weak-password') {
+                                authError.textContent = 'Пароль должен быть не менее 6 символов.';
+                            } else {
+                                authError.textContent = 'Ошибка регистрации.';
+                            }
+                        });
+                }
+            });
+        }
+        
+        // --- INITIALIZATION ---
+        
+        async function initApp() {
+            const lastSelectedMonth = localStorage.getItem('selectedMonth');
+            const lastSelectedYear = localStorage.getItem('selectedYear');
+
+            if (lastSelectedMonth !== null && lastSelectedYear !== null) {
+                selectedMonth = parseInt(lastSelectedMonth, 10);
+                selectedYear = parseInt(lastSelectedYear, 10);
+            }
+
+            const firebaseConfig = {
+                apiKey: "AIzaSyAwV2orD_hamu431FinzFe4bXYrHWxfRMg",
+                authDomain: "okk-akcent.firebaseapp.com",
+                projectId: "okk-akcent",
+                storageBucket: "okk-akcent.appspot.com",
+                messagingSenderId: "188952407379",
+                appId: "1:188952407379:web:d8a2b8e8027842b23185a6",
+                measurementId: "G-4T7LRES9BZ"
+            };
+            appId = firebaseConfig.projectId;
+            
+            document.getElementById('team-id-display').textContent = appId;
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                setupAuthListeners();
+
+                onAuthStateChanged(auth, (user) => {
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    const authOverlay = document.getElementById('auth-overlay');
+                    const appContainer = document.getElementById('app-container');
+
+                    if (user) {
+                        console.log("onAuthStateChanged: User is logged in.", user.uid);
+                        userId = user.uid;
+                        
+                        authOverlay.classList.add('hidden');
+                        appContainer.classList.remove('hidden');
+                        loadingOverlay.classList.add('hidden');
+                        
+                        if (!isAppInitialized) {
+                            console.log("Initializing app for the first time for user:", userId);
+                            isAppInitialized = true;
+                            populateSelectors();      
+                            initCombinedChart();
+                            initSummaryChart();
+                            setupAppListeners();
+                            handleDateChange(); 
+                        }
+                    } else {
+                        console.log("onAuthStateChanged: User is logged out.");
+                        userId = null;
+                        isAppInitialized = false;
+
+                        if(unsubscribeDataListener) unsubscribeDataListener();
+
+                        loadingOverlay.classList.add('hidden');
+                        appContainer.classList.add('hidden');
+                        authOverlay.classList.remove('hidden');
+                    }
+                });
+
+            } catch (error) {
+                 console.error("Firebase initialization failed:", error);
+                 const loadingText = document.getElementById('loading-text');
+                 const spinner = document.getElementById('loading-spinner');
+                 if(spinner) spinner.style.display = 'none';
+                 if(loadingText) {
+                     loadingText.innerHTML = `
+                         <div class="text-center p-4 max-w-md bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                             <h2 class="text-xl font-bold mb-2">Ошибка подключения</h2>
+                             <p>Не удалось подключиться к базе данных. Проверьте конфигурацию Firebase.</p>
+                         </div>
+                     `;
+                 }
+            }
         }
         
         document.addEventListener('DOMContentLoaded', initApp);
