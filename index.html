@@ -535,7 +535,6 @@
             const selectedDayIndex = parseInt(selectedDay) - 1;
             if (selectedDayIndex < 0) return;
 
-            // Load daily data for reverse calculator
             const dataKey = `${selectedYear}-${selectedMonth}`;
             const monthlyReverseData = reverseCalcDataStore[dataKey] || {};
             const dailyReverseData = monthlyReverseData[selectedDay] || { registered: 0, given: 0, checks: 0 };
@@ -588,7 +587,7 @@
         function initSummaryChart() {
             const ctx = document.getElementById('summary-chart').getContext('2d');
             summaryChart = new Chart(ctx, {
-                type: 'bar', // Base type
+                type: 'bar',
                 data: { 
                     labels: [], 
                     datasets: [ 
@@ -716,7 +715,6 @@
             selectedMonth = parseInt(document.getElementById('month-select').value);
             selectedYear = parseInt(document.getElementById('year-select').value);
             
-            // Save the new selection to localStorage
             localStorage.setItem('selectedMonth', selectedMonth);
             localStorage.setItem('selectedYear', selectedYear);
 
@@ -758,7 +756,6 @@
         // --- INITIALIZATION ---
         
         async function initApp() {
-            // Restore last selected date from localStorage
             const lastSelectedMonth = localStorage.getItem('selectedMonth');
             const lastSelectedYear = localStorage.getItem('selectedYear');
 
@@ -767,16 +764,13 @@
                 selectedYear = parseInt(lastSelectedYear, 10);
             }
 
-            // 1. Render the basic layout immediately
             populateSelectors();      
             initCombinedChart();
             initSummaryChart();
 
-            // 2. Get Firebase config from the environment, with a hardcoded fallback
             let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
             appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-            // If environment config is missing, use the hardcoded fallback
             if (!firebaseConfig) {
                 console.warn("Environment Firebase config not found. Using hardcoded fallback.");
                 firebaseConfig = {
