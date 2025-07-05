@@ -760,18 +760,27 @@
             initCombinedChart();
             initSummaryChart();
 
-            // 2. Get Firebase config from the environment
-            // IMPORTANT: These variables are provided by the hosting environment.
-            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+            // 2. Get Firebase config from the environment, with a hardcoded fallback
+            let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
             appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            document.getElementById('team-id-display').textContent = appId;
 
+            // If environment config is missing, use the hardcoded fallback
             if (!firebaseConfig) {
-                console.error("Firebase config is missing.");
-                document.getElementById('loading-text').textContent = "Ошибка: Конфигурация Firebase отсутствует.";
-                document.getElementById('loading-spinner').style.display = 'none';
-                return;
+                console.warn("Environment Firebase config not found. Using hardcoded fallback.");
+                firebaseConfig = {
+                    apiKey: "AIzaSyAwV2orD_hamu431FinzFe4bXYrHWxfRMg",
+                    authDomain: "okk-akcent.firebaseapp.com",
+                    projectId: "okk-akcent",
+                    storageBucket: "okk-akcent.appspot.com",
+                    messagingSenderId: "188952407379",
+                    appId: "1:188952407379:web:d8a2b8e8027842b23185a6",
+                    measurementId: "G-4T7LRES9BZ"
+                };
+                // If we use the fallback config, the appId must match it.
+                appId = firebaseConfig.projectId;
             }
+            
+            document.getElementById('team-id-display').textContent = appId;
 
             try {
                 const app = initializeApp(firebaseConfig);
@@ -796,16 +805,15 @@
                         isAuthReady = false;
                         console.log("User is not signed in. Attempting authentication...");
                         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                        if (token) {
+                        if (token && appId !== 'okk-akcent') { // Only use token if not using fallback
                             signInWithCustomToken(auth, token).catch(err => {
-                                console.error("Custom token sign-in failed:", err);
-                                // Fallback to anonymous sign-in if custom token fails
+                                console.error("Custom token sign-in failed, falling back to anonymous:", err);
                                 signInAnonymously(auth).catch(anonErr => {
-                                    console.error("Anonymous sign-in failed:", anonErr);
+                                    console.error("Anonymous sign-in after token fail failed:", anonErr);
                                 });
                             });
                         } else {
-                            // If no token, sign in anonymously
+                            console.log("No custom token or using fallback config, signing in anonymously.");
                             signInAnonymously(auth).catch(anonErr => {
                                 console.error("Anonymous sign-in failed:", anonErr);
                             });
