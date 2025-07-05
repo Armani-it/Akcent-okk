@@ -352,6 +352,7 @@
         let extraDataStore = {};
         let factRevenueDataStore = {}; // Combined data store
         let monthlyPlanDataStore = {}; // For the monthly plan
+        let reverseCalcDataStore = {}; // NEW: Store for reverse calculator inputs
 
         // Firebase State
         let db, auth;
@@ -371,7 +372,8 @@
                 leads: leadDataStore[dataKey] || createNewData(leadSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
                 extra: extraDataStore[dataKey] || createNewData(extraSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
                 factRevenue: factRevenueDataStore[dataKey] || createNewData(factRevenueSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
-                monthlyPlan: monthlyPlanDataStore[dataKey] || { plan: 5000000 }
+                monthlyPlan: monthlyPlanDataStore[dataKey] || { plan: 5000000 },
+                reverseCalc: reverseCalcDataStore[dataKey] || { registered: 0, given: 0, checks: 0 }
             };
 
             try {
@@ -701,6 +703,7 @@
             extraDataStore[dataKey] = createNewData(extraSourceNames, days);
             factRevenueDataStore[dataKey] = createNewData(factRevenueSourceNames, days);
             monthlyPlanDataStore[dataKey] = { plan: 5000000 };
+            reverseCalcDataStore[dataKey] = { registered: 0, given: 0, checks: 0 };
             
             createTable('leads-data-table', leadSourceNames, true);
             createTable('extra-data-table', extraSourceNames, false);
@@ -724,15 +727,23 @@
                     extraDataStore[dataKey] = data.extra || createNewData(extraSourceNames, days);
                     factRevenueDataStore[dataKey] = data.factRevenue || createNewData(factRevenueSourceNames, days);
                     monthlyPlanDataStore[dataKey] = data.monthlyPlan || { plan: 5000000 };
+                    reverseCalcDataStore[dataKey] = data.reverseCalc || { registered: 0, given: 0, checks: 0 };
                 } else {
                     console.log("No document for this month. Creating new data for the team.");
                     leadDataStore[dataKey] = createNewData(leadSourceNames, days);
                     extraDataStore[dataKey] = createNewData(extraSourceNames, days);
                     factRevenueDataStore[dataKey] = createNewData(factRevenueSourceNames, days);
                     monthlyPlanDataStore[dataKey] = { plan: 5000000 };
+                    reverseCalcDataStore[dataKey] = { registered: 0, given: 0, checks: 0 };
                     saveDataToFirestore(); 
                     return;
                 }
+
+                // Restore reverse calculator inputs
+                const reverseCalcData = reverseCalcDataStore[dataKey];
+                document.getElementById('reverse-calc-registered-trials-input').value = reverseCalcData.registered;
+                document.getElementById('reverse-calc-given-trials-input').value = reverseCalcData.given;
+                document.getElementById('reverse-calc-checks-count').value = reverseCalcData.checks;
 
                 console.log("Populating tables with Firestore data...");
                 createTable('leads-data-table', leadSourceNames, true);
@@ -785,7 +796,29 @@
                         handleDateChange(); 
                     } else {
                         console.log("No user. Signing in anonymously for team access.");
-                        await signInAnonymously(auth);
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (error) {
+                             console.error("Anonymous sign-in failed:", error);
+                             const loadingText = document.getElementById('loading-text');
+                             const spinner = document.getElementById('loading-spinner');
+                             if(spinner) spinner.style.display = 'none';
+                             if(loadingText) {
+                                 loadingText.innerHTML = `
+                                     <div class="text-center p-4 max-w-md bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                                         <h2 class="text-xl font-bold mb-2">Ошибка подключения к Firebase</h2>
+                                         <p class="text-left">
+                                             Не удалось подключиться к базе данных. Пожалуйста, проверьте:
+                                             <ol class="list-decimal list-inside mt-2 space-y-1">
+                                                 <li>Правильность ключей в <strong>firebaseConfig</strong> в коде.</li>
+                                                 <li>Включен ли <strong>анонимный вход</strong> в Firebase Authentication.</li>
+                                                 <li>Добавлен ли домен вашего сайта в <strong>Authorized domains</strong> в Firebase.</li>
+                                             </ol>
+                                         </p>
+                                     </div>
+                                 `;
+                             }
+                        }
                     }
                 });
             } catch (e) {
@@ -796,15 +829,8 @@
                 if(loadingText) {
                     loadingText.innerHTML = `
                         <div class="text-center p-4 max-w-md bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                            <h2 class="text-xl font-bold mb-2">Ошибка подключения к Firebase</h2>
-                            <p class="text-left">
-                                Не удалось подключиться к базе данных. Пожалуйста, проверьте:
-                                <ol class="list-decimal list-inside mt-2 space-y-1">
-                                    <li>Правильность ключей в <strong>firebaseConfig</strong> в коде.</li>
-                                    <li>Включен ли <strong>анонимный вход</strong> в Firebase Authentication.</li>
-                                    <li>Добавлен ли домен вашего сайта в <strong>Authorized domains</strong> в Firebase.</li>
-                                </ol>
-                            </p>
+                            <h2 class="text-xl font-bold mb-2">Ошибка инициализации Firebase</h2>
+                            <p class="text-left">Проверьте правильность ключей в <strong>firebaseConfig</strong>.</p>
                         </div>
                     `;
                 }
@@ -846,11 +872,24 @@
                 saveDataToFirestore();
             });
 
+            document.getElementById('reverse-calculator-steps').addEventListener('input', (e) => {
+                if (e.target.matches('.calc-input')) {
+                    const dataKey = `${selectedYear}-${selectedMonth}`;
+                    if (!reverseCalcDataStore[dataKey]) {
+                        reverseCalcDataStore[dataKey] = {};
+                    }
+                    reverseCalcDataStore[dataKey].registered = parseFloat(document.getElementById('reverse-calc-registered-trials-input').value) || 0;
+                    reverseCalcDataStore[dataKey].given = parseFloat(document.getElementById('reverse-calc-given-trials-input').value) || 0;
+                    reverseCalcDataStore[dataKey].checks = parseFloat(document.getElementById('reverse-calc-checks-count').value) || 0;
+                    runReverseCalculator();
+                    saveDataToFirestore();
+                }
+            });
+
             document.getElementById('month-select').addEventListener('change', handleDateChange);
             document.getElementById('year-select').addEventListener('change', handleDateChange);
             document.getElementById('day-selector').addEventListener('change', () => { runCalculator(); runReverseCalculator(); });
             document.getElementById('calculator-steps').addEventListener('input', runCalculator);
-            document.getElementById('reverse-calculator-steps').addEventListener('input', runReverseCalculator);
             
             populateSelectors();    
             initCombinedChart();
