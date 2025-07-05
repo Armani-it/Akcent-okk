@@ -799,10 +799,16 @@
                         if (token) {
                             signInWithCustomToken(auth, token).catch(err => {
                                 console.error("Custom token sign-in failed:", err);
-                                signInAnonymously(auth); // Fallback to anonymous
+                                // Fallback to anonymous sign-in if custom token fails
+                                signInAnonymously(auth).catch(anonErr => {
+                                    console.error("Anonymous sign-in failed:", anonErr);
+                                });
                             });
                         } else {
-                            signInAnonymously(auth);
+                            // If no token, sign in anonymously
+                            signInAnonymously(auth).catch(anonErr => {
+                                console.error("Anonymous sign-in failed:", anonErr);
+                            });
                         }
                     }
                 });
@@ -816,7 +822,7 @@
                      loadingText.innerHTML = `
                          <div class="text-center p-4 max-w-md bg-red-100 border border-red-400 text-red-700 rounded-lg">
                              <h2 class="text-xl font-bold mb-2">Ошибка подключения</h2>
-                             <p>Не удалось подключиться к базе данных. Обратитесь к администратору.</p>
+                             <p>Не удалось подключиться к базе данных. Проверьте конфигурацию Firebase.</p>
                          </div>
                      `;
                  }
