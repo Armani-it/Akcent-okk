@@ -352,7 +352,7 @@
         let extraDataStore = {};
         let factRevenueDataStore = {};
         let monthlyPlanDataStore = {};
-        let reverseCalcDataStore = {}; // IMPROVED: Now stores data for each day.
+        let reverseCalcDataStore = {};
 
         // Firebase State
         let db, auth;
@@ -368,13 +368,12 @@
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 saveDataToFirestore();
-            }, 700); // Save 0.7 seconds after the user stops typing
+            }, 700);
         }
 
         async function saveDataToFirestore() {
             if (!isAuthReady) return;
             const dataKey = `${selectedYear}-${selectedMonth}`;
-            // Path for public data, accessible by team members
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'monthlyData', dataKey);
             
             const dataToSave = {
@@ -382,7 +381,7 @@
                 extra: extraDataStore[dataKey] || createNewData(extraSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
                 factRevenue: factRevenueDataStore[dataKey] || createNewData(factRevenueSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
                 monthlyPlan: monthlyPlanDataStore[dataKey] || { plan: 5000000 },
-                reverseCalc: reverseCalcDataStore[dataKey] || {} // Will be populated day-by-day
+                reverseCalc: reverseCalcDataStore[dataKey] || {}
             };
 
             try {
@@ -669,7 +668,6 @@
             planInput.value = planAmount;
             waterFill.style.height = `${cappedPercentage}%`;
             
-            // Hue goes from 0 (red) to 120 (green). So we multiply percentage by 1.2
             const hue = cappedPercentage * 1.2;
             waterFill.style.backgroundColor = `hsl(${hue}, 70%, 50%)`;
             
@@ -717,6 +715,11 @@
 
             selectedMonth = parseInt(document.getElementById('month-select').value);
             selectedYear = parseInt(document.getElementById('year-select').value);
+            
+            // Save the new selection to localStorage
+            localStorage.setItem('selectedMonth', selectedMonth);
+            localStorage.setItem('selectedYear', selectedYear);
+
             document.getElementById('dashboard-subtitle').textContent = `Данные за ${monthNames[selectedMonth]} ${selectedYear}`;
             
             const dataKey = `${selectedYear}-${selectedMonth}`;
@@ -755,6 +758,15 @@
         // --- INITIALIZATION ---
         
         async function initApp() {
+            // Restore last selected date from localStorage
+            const lastSelectedMonth = localStorage.getItem('selectedMonth');
+            const lastSelectedYear = localStorage.getItem('selectedYear');
+
+            if (lastSelectedMonth !== null && lastSelectedYear !== null) {
+                selectedMonth = parseInt(lastSelectedMonth, 10);
+                selectedYear = parseInt(lastSelectedYear, 10);
+            }
+
             // 1. Render the basic layout immediately
             populateSelectors();      
             initCombinedChart();
@@ -776,7 +788,6 @@
                     appId: "1:188952407379:web:d8a2b8e8027842b23185a6",
                     measurementId: "G-4T7LRES9BZ"
                 };
-                // If we use the fallback config, the appId must match it.
                 appId = firebaseConfig.projectId;
             }
             
@@ -787,36 +798,28 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // Use onAuthStateChanged for robust auth handling
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
-                        // User is signed in.
                         console.log("Authenticated for team access with UID:", user.uid);
                         userId = user.uid;
                         if (!isAuthReady) {
                             isAuthReady = true;
-                            // 3. Setup event listeners and load data now that we are authenticated
                             setupEventListeners();
-                            handleDateChange(); // Initial data load
+                            handleDateChange(); 
                             document.getElementById('loading-overlay').style.display = 'none';
                         }
                     } else {
-                        // User is signed out. Attempt to sign in.
                         isAuthReady = false;
                         console.log("User is not signed in. Attempting authentication...");
                         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                        if (token && appId !== 'okk-akcent') { // Only use token if not using fallback
+                        if (token && appId !== 'okk-akcent') {
                             signInWithCustomToken(auth, token).catch(err => {
                                 console.error("Custom token sign-in failed, falling back to anonymous:", err);
-                                signInAnonymously(auth).catch(anonErr => {
-                                    console.error("Anonymous sign-in after token fail failed:", anonErr);
-                                });
+                                signInAnonymously(auth);
                             });
                         } else {
                             console.log("No custom token or using fallback config, signing in anonymously.");
-                            signInAnonymously(auth).catch(anonErr => {
-                                console.error("Anonymous sign-in failed:", anonErr);
-                            });
+                            signInAnonymously(auth);
                         }
                     }
                 });
@@ -838,7 +841,6 @@
         }
 
         function setupEventListeners() {
-            // Use 'input' event for table inputs for real-time updates
             document.body.addEventListener('input', (e) => {
                 if (e.target.matches('.data-input')) {
                     const tableId = e.target.closest('table').id;
