@@ -206,8 +206,9 @@
                     </div>
                 </div>
                 <p class="text-gray-500 mt-2" id="dashboard-subtitle">Данные за</p>
-                <div class="text-xs text-gray-400 mt-2">
-                    ID Команды: <span id="team-id-display" class="font-mono bg-gray-100 px-1 py-0.5 rounded">...</span>
+                <div class="text-xs text-gray-400 mt-2 space-y-1">
+                    <div>Пользователь: <span id="user-email-display" class="font-mono bg-gray-100 px-1 py-0.5 rounded">...</span></div>
+                    <div>ID Проекта: <span id="team-id-display" class="font-mono bg-gray-100 px-1 py-0.5 rounded">...</span></div>
                 </div>
             </header>
 
@@ -443,7 +444,7 @@
         async function saveDataToFirestore() {
             if (!isAppInitialized) return;
             const dataKey = `${selectedYear}-${selectedMonth}`;
-            const docRef = doc(db, 'userData', userId, 'monthlyData', dataKey);
+            const docRef = doc(db, 'users', userId, 'monthlyData', dataKey);
             
             const dataToSave = {
                 leads: leadDataStore[dataKey] || createNewData(leadSourceNames, getDaysInMonth(selectedYear, selectedMonth)),
@@ -470,7 +471,7 @@
             return sourceNames.map(source => ({ source: source, values: Array(days).fill(0) }));
         }
         
-        function createTable(containerId, sourceNames, isLeadTable, hasTotals = true) {
+        function createTable(containerId, sourceNames, hasTotals = true) {
             let dataStore;
             switch(containerId) {
                 case 'leads-data-table': dataStore = leadDataStore; break;
@@ -529,7 +530,7 @@
                 for (let i = 0; i < days; i++) { footerRowHtml += `<td id="${containerId}-col-total-${i}" class="px-2 py-2 text-center font-bold">0</td>`; }
                 footerRowHtml += `<td id="${containerId}-grand-total" class="px-2 py-2 text-center sticky right-0 z-10 ${headerClass} font-extrabold">0</td></tr>`;
                 
-                if (isLeadTable) {
+                if (containerId === 'leads-data-table') {
                     let combinedFooterRow = `<tr class="bg-blue-100 text-blue-800 font-bold"><th class="px-2 py-3 sticky left-0 z-10 bg-blue-100">Общий итог за день</th>`;
                     for (let i = 0; i < days; i++) { combinedFooterRow += `<td id="combined-col-total-${i}" class="px-2 py-2 text-center">0</td>`; }
                     combinedFooterRow += `<td id="combined-grand-total" class="px-2 py-2 text-center sticky right-0 z-10 bg-blue-100 font-extrabold">0</td></tr>`;
@@ -849,7 +850,7 @@
             document.getElementById('dashboard-subtitle').textContent = `Данные за ${monthNames[selectedMonth]} ${selectedYear}`;
             
             const dataKey = `${selectedYear}-${selectedMonth}`;
-            const docRef = doc(db, 'userData', userId, 'monthlyData', dataKey);
+            const docRef = doc(db, 'users', userId, 'monthlyData', dataKey);
             
             console.log(`Attempting to listen to document: ${docRef.path}`);
 
@@ -874,9 +875,9 @@
 
                 console.log("Populating tables with Firestore data...");
                 createTable('leads-data-table', leadSourceNames, true);
-                createTable('extra-data-table', extraSourceNames, false);
+                createTable('extra-data-table', extraSourceNames, true);
                 createTable('fact-revenue-data-table', factRevenueSourceNames, true);
-                createTable('analytics-data-table', analyticsSourceNames, false, false);
+                createTable('analytics-data-table', analyticsSourceNames, false);
                 
                 populateDaySelector(days);
                 calculateTotals(leadDataStore[dataKey], extraDataStore[dataKey], factRevenueDataStore[dataKey], analyticsDataStore[dataKey]);
@@ -1017,8 +1018,6 @@
             };
             appId = firebaseConfig.projectId;
             
-            document.getElementById('team-id-display').textContent = appId;
-
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
@@ -1034,6 +1033,7 @@
                     if (user) {
                         console.log("onAuthStateChanged: User is logged in.", user.uid);
                         userId = user.uid;
+                        document.getElementById('user-email-display').textContent = user.email;
                         
                         authOverlay.classList.add('hidden');
                         appContainer.classList.remove('hidden');
