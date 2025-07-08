@@ -304,8 +304,8 @@
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                    <label class="font-medium text-gray-700">Дошли (Факт из таблицы)</label>
-                     <div id="reverse-calc-attended-trials" class="calc-input bg-gray-100 flex items-center justify-center">0</div>
+                    <label class="font-medium text-gray-700">Сабақ өтілді (Факт)</label>
+                    <input type="number" id="reverse-calc-attended-input" class="calc-input" value="0">
                     <div class="flex flex-col items-center bg-purple-50 p-4 rounded-lg">
                         <label class="text-sm font-medium text-purple-800">Процент доходимости</label>
                         <div id="reverse-calc-show-perc-result" class="text-xl font-bold text-purple-800">0%</div>
@@ -626,10 +626,11 @@
 
             const dataKey = `${selectedYear}-${selectedMonth}`;
             const monthlyReverseData = reverseCalcDataStore[dataKey] || {};
-            const dailyReverseData = monthlyReverseData[selectedDay] || { registered: 0, given: 0, checks: 0 };
+            const dailyReverseData = monthlyReverseData[selectedDay] || { registered: 0, given: 0, attended: 0, checks: 0 };
 
             document.getElementById('reverse-calc-registered-trials-input').value = dailyReverseData.registered;
             document.getElementById('reverse-calc-given-trials-input').value = dailyReverseData.given;
+            document.getElementById('reverse-calc-attended-input').value = dailyReverseData.attended;
             document.getElementById('reverse-calc-checks-count').value = dailyReverseData.checks;
             
             const initialLeadsEl = document.querySelector(`#combined-col-total-${selectedDayIndex}`);
@@ -637,17 +638,14 @@
             document.getElementById('reverse-calc-initial-leads').textContent = initialLeads;
 
             const factData = factRevenueDataStore[dataKey] || [];
-            const trialRow = factData.find(r => r.source === 'Пробный сабақ (факт)');
             const revenueRow = factData.find(r => r.source === 'Касса (факт)');
-            
-            const attendedTrials = trialRow ? (Number(trialRow.values[selectedDayIndex]) || 0) : 0;
             const revenue = revenueRow ? (Number(revenueRow.values[selectedDayIndex]) || 0) : 0;
             
             const registeredTrials = dailyReverseData.registered;
             const givenTrials = dailyReverseData.given;
+            const attendedTrials = dailyReverseData.attended;
             const checksCount = dailyReverseData.checks;
 
-            document.getElementById('reverse-calc-attended-trials').textContent = attendedTrials;
             document.getElementById('reverse-calc-revenue').textContent = revenue.toLocaleString('ru-RU');
 
             const registeredConversion = initialLeads > 0 ? (registeredTrials / initialLeads) * 100 : 0;
@@ -935,10 +933,11 @@
                         reverseCalcDataStore[dataKey] = {};
                     }
                     if (!reverseCalcDataStore[dataKey][day]) {
-                        reverseCalcDataStore[dataKey][day] = {};
+                        reverseCalcDataStore[dataKey][day] = { registered: 0, given: 0, attended: 0, checks: 0 };
                     }
                     reverseCalcDataStore[dataKey][day].registered = parseFloat(document.getElementById('reverse-calc-registered-trials-input').value) || 0;
                     reverseCalcDataStore[dataKey][day].given = parseFloat(document.getElementById('reverse-calc-given-trials-input').value) || 0;
+                    reverseCalcDataStore[dataKey][day].attended = parseFloat(document.getElementById('reverse-calc-attended-input').value) || 0;
                     reverseCalcDataStore[dataKey][day].checks = parseFloat(document.getElementById('reverse-calc-checks-count').value) || 0;
                     runReverseCalculator();
                     debouncedSave();
@@ -1034,6 +1033,7 @@
                         console.log("onAuthStateChanged: User is logged in.", user.uid);
                         userId = user.uid;
                         document.getElementById('user-email-display').textContent = user.email;
+                        document.getElementById('team-id-display').textContent = appId;
                         
                         authOverlay.classList.add('hidden');
                         appContainer.classList.remove('hidden');
