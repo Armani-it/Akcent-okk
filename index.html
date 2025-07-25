@@ -574,7 +574,8 @@
             const trialDailyTotals = (factRevenueData[0] && factRevenueData[0].values) ? factRevenueData[0].values.map(v => Number(v) || 0) : Array(days).fill(0);
             const revenueDailyTotals = (factRevenueData[1] && factRevenueData[1].values) ? factRevenueData[1].values.map(v => Number(v) || 0) : Array(days).fill(0);
 
-            const combinedDailyTotals = Array(days).fill(0).map((_, i) => (leadDailyTotals[i] || 0) + (extraDailyTotals[i] || 0));
+            const combinedDailyTotals = Array(days).fill(0).map((_, i) => (leadDailyTotals[i] || 0));
+            // + (extraDailyTotals[i] || 0)
             
             const combinedGrandTotalEl = document.querySelector('#combined-grand-total');
             if(combinedGrandTotalEl) {
